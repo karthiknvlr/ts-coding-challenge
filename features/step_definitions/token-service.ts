@@ -11,6 +11,13 @@ import {
   TokenMintTransaction,
 } from "@hashgraph/sdk";
 import assert from "node:assert";
+import {
+  createToken,
+  tokenAssociation,
+  tokenBalance,
+  transferToken,
+  isTokenAssociated,
+} from "../../src/token-utility";
 
 const client = Client.forTestnet();
 
@@ -172,10 +179,109 @@ Given(/^A second Hedera account$/, async function () {
 
 Given(
   /^A token named Test Token \(HTT\) with (\d+) tokens$/,
-  async function () {}
+  async function (totalSupply: number) {
+    const tokenTransaction = await createToken({ totalSupply, client });
+    tokenTransaction.tokenId && (tokenId = tokenTransaction.tokenId);
+    console.log("The new token ID is " + tokenId);
+    // await tokenAssociation({
+    //   accountId: AccountId.fromString(accounts[0].id),
+    //   tokenId: tokenId,
+    //   client: client,
+    //   accountKey: PrivateKey.fromStringED25519(accounts[0].privateKey),
+    // });
+    assert.ok(tokenId?.toString() !== undefined, "Token ID is not defined");
+  }
 );
-Given(/^The first account holds (\d+) HTT tokens$/, async function () {});
-Given(/^The second account holds (\d+) HTT tokens$/, async function () {});
+
+Given(
+  /^The first account holds (\d+) HTT tokens$/,
+  async function (value: number) {
+    await transferToken({
+      tokenId,
+      from: accounts[0].id,
+      to: accounts[2].id,
+      value,
+      senderPrivateKey: treasuryKey,
+      client,
+    });
+
+    const isAssociated = await isTokenAssociated({
+      tokenId,
+      accountId: AccountId.fromString(accounts[2].id),
+      client,
+    });
+
+    console.log(`isAssociated ${accounts[2].id}`, isAssociated);
+
+    if (isAssociated) {
+      await tokenAssociation({
+        accountId: AccountId.fromString(accounts[2].id),
+        tokenId: tokenId,
+        client: client,
+        accountKey: PrivateKey.fromStringED25519(accounts[2].privateKey),
+      });
+    }
+
+    const tokenBalanceTxn = await tokenBalance({
+      tokenId: tokenId,
+      accountId: AccountId.fromString(accounts[2].id),
+      client: client,
+    });
+
+    assert.ok(
+      (tokenBalanceTxn as Long).toNumber() > value,
+      "Token balance is not correct"
+    );
+  }
+);
+
+Given(
+  /^The second account holds (\d+) HTT tokens$/,
+  async function (value: number) {
+    await transferToken({
+      tokenId,
+      from: accounts[0].id,
+      to: accounts[3].id,
+      value,
+      senderPrivateKey: treasuryKey,
+      client,
+    });
+
+    const isAssociated = await isTokenAssociated({
+      tokenId,
+      accountId: AccountId.fromString(accounts[3].id),
+      client,
+    });
+
+    console.log(`isAssociated ${accounts[3].id}`, isAssociated);
+
+    if (isAssociated) {
+      await tokenAssociation({
+        accountId: AccountId.fromString(accounts[3].id),
+        tokenId: tokenId,
+        client: client,
+        accountKey: PrivateKey.fromStringED25519(accounts[3].privateKey),
+      });
+    }
+    await tokenAssociation({
+      accountId: AccountId.fromString(accounts[3].id),
+      tokenId: tokenId,
+      client: client,
+      accountKey: PrivateKey.fromStringED25519(accounts[3].privateKey),
+    });
+
+    const tokenBalanceTxn = await tokenBalance({
+      tokenId: tokenId,
+      accountId: AccountId.fromString(accounts[3].id),
+      client: client,
+    });
+
+    assert.ok(
+      (tokenBalanceTxn as Long).toNumber() > value,
+      "Token balance is not correct"
+    );
+  }
+);
 When(
   /^The first account creates a transaction to transfer (\d+) HTT tokens to the second account$/,
   async function () {}
